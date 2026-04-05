@@ -5,18 +5,18 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { ChevronRight } from 'lucide-react'
 
-export function Breadcrumbs() {
+export function HostBreadcrumbs() {
   const pathname = usePathname()
-  const paths = pathname.split('/').filter(p => p && p !== 'admin')
+  const paths = pathname.split('/').filter(p => p && p !== 'host')
 
   return (
     <nav className="admin-breadcrumb" aria-label="Breadcrumb">
-      <Link href="/admin" className="admin-breadcrumb-item">
-        NorthEastTravel
+      <Link href="/host/dashboard" className="admin-breadcrumb-item">
+        Host Portal
       </Link>
 
       {paths.map((path, index) => {
-        const href = `/admin/${paths.slice(0, index + 1).join('/')}`
+        const href = `/host/${paths.slice(0, index + 1).join('/')}`
         const isLast = index === paths.length - 1
         const label = path.charAt(0).toUpperCase() + path.slice(1).replace(/-/g, ' ')
 

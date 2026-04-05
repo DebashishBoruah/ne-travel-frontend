@@ -77,7 +77,8 @@ export default function DestinationsAdminPage() {
           <h1 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--admin-text-main)', letterSpacing: '-0.025em' }}>Destinations</h1>
           <p style={{ fontSize: '0.8125rem', color: 'var(--admin-text-subtle)', marginTop: 2 }}>Manage all travel destinations across Northeast India.</p>
         </div>
-        <button 
+        <button
+          type="button"
           onClick={handleCreate}
           className="admin-btn admin-btn-primary"
         >
@@ -109,7 +110,7 @@ export default function DestinationsAdminPage() {
           <MapPin size={40} style={{ color: '#d1d5db', margin: '0 auto 1rem' }} />
           <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.375rem', color: 'var(--admin-text-main)' }}>No Destinations Yet</h3>
           <p style={{ color: 'var(--admin-text-subtle)', marginBottom: '1.25rem', fontSize: '0.8125rem' }}>Get started by adding your first travel destination.</p>
-          <button onClick={handleCreate} className="admin-btn admin-btn-secondary">
+          <button type="button" onClick={handleCreate} className="admin-btn admin-btn-secondary">
             <Plus size={14} /> Add Your First Destination
           </button>
         </div>
@@ -151,18 +152,18 @@ export default function DestinationsAdminPage() {
         </div>
       )}
 
-      {isCreateModalOpen && (
-        <SideModal 
-          isOpen={isCreateModalOpen} 
-          onClose={() => setIsCreateModalOpen(false)} 
-          title="Add New Destination"
-        >
-          <DestinationForm 
-            onSuccess={handleCreateSuccess} 
-            onCancel={() => setIsCreateModalOpen(false)} 
+      <SideModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        title="Add New Destination"
+      >
+        {isCreateModalOpen ? (
+          <DestinationForm
+            onSuccess={handleCreateSuccess}
+            onCancel={() => setIsCreateModalOpen(false)}
           />
-        </SideModal>
-      )}
+        ) : null}
+      </SideModal>
     </div>
   )
 }

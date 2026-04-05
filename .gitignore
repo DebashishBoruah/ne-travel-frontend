@@ -39,6 +39,7 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
+# Next.js regenerates this; dev build may reference .next paths
 next-env.d.ts
 
 # editors/IDE

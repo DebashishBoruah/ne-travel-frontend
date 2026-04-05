@@ -1,74 +1,70 @@
-import { useEffect, useState } from 'react'
+'use client'
+
+import { useEffect } from 'react'
 import { X } from 'lucide-react'
 import { createPortal } from 'react-dom'
 
 interface SideModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  title: string;
-  children: React.ReactNode;
+  isOpen: boolean
+  onClose: () => void
+  title: string
+  children: React.ReactNode
 }
 
 export default function SideModal({ isOpen, onClose, title, children }: SideModalProps) {
-  const [mounted, setMounted] = useState(false)
-
   useEffect(() => {
-    setMounted(true)
-  }, [])
-
-  useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden'
-    } else {
-      document.body.style.overflow = 'unset'
+    if (!isOpen) return
+    const wrap = document.querySelector<HTMLElement>('.admin-content-wrapper')
+    const prev = wrap?.style.overflow ?? ''
+    if (wrap) wrap.style.overflow = 'hidden'
+    return () => {
+      if (wrap) wrap.style.overflow = prev
     }
-    return () => { document.body.style.overflow = 'unset' }
   }, [isOpen])
 
-  if (!mounted) return null
+  useEffect(() => {
+    if (!isOpen) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [isOpen, onClose])
+
+  if (!isOpen || typeof document === 'undefined') return null
 
   const content = (
-    <div 
-      className="fixed inset-0 flex justify-end"
-      style={{ 
-        pointerEvents: isOpen ? 'auto' : 'none', 
-        zIndex: 9999,
-        visibility: isOpen ? 'visible' : 'hidden',
-        transition: 'visibility 300ms'
-      }}
-    >
-      {/* Overlay */}
-      <div 
+    <div className="admin-side-modal-root">
+      <button
+        type="button"
+        aria-label="Close modal"
         onClick={onClose}
-        className={`absolute inset-0 bg-black/20 backdrop-blur-[2px] transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0'}`}
+        className="admin-side-modal-backdrop"
       />
-      
-      {/* Slide-over panel */}
-      <div 
-        className={`relative w-full max-w-[500px] h-full flex flex-col transition-transform duration-300 ease-in-out shadow-2xl bg-white ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}
+
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="admin-side-modal-title"
+        className="admin-side-modal-panel"
+        onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="p-6 border-b border-admin-border-standard flex items-center justify-between bg-white">
-          <h2 className="text-lg font-semibold text-admin-text-main m-0 tracking-tight">{title}</h2>
-          <button 
+        <div className="admin-side-modal-header">
+          <h2 id="admin-side-modal-title">{title}</h2>
+          <button
+            type="button"
             onClick={onClose}
-            className="p-2 rounded-lg hover:bg-gray-50 text-admin-text-subtle transition-colors flex items-center justify-center border-none bg-transparent cursor-pointer"
+            className="admin-side-modal-close"
+            aria-label="Close"
           >
-            <X size={20} />
+            <X size={18} />
           </button>
         </div>
 
-        {/* Body */}
-        <div className="p-6 flex-1 overflow-y-auto bg-white">
-          {children}
-        </div>
+        <div className="admin-side-modal-body">{children}</div>
       </div>
     </div>
   )
 
-  if (typeof document !== 'undefined') {
-    return createPortal(content, document.body)
-  }
-
-  return null;
+  return createPortal(content, document.body)
 }

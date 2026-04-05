@@ -1,11 +1,23 @@
+function readNeAuthTokenFromDocument(): string | null {
+  if (typeof document === 'undefined') return null
+  const match = document.cookie.match(/(?:^|; )ne_auth_token=([^;]*)/)
+  if (!match?.[1]) return null
+  const raw = match[1].trim()
+  try {
+    return decodeURIComponent(raw)
+  } catch {
+    return raw
+  }
+}
+
 export async function apiFetch(endpoint: string, options: RequestInit = {}) {
   const headers = new Headers(options.headers)
 
   // In the browser, try to extract ne_auth_token
   if (typeof window !== 'undefined') {
-    const match = document.cookie.match(new RegExp('(^| )ne_auth_token=([^;]+)'))
-    if (match) {
-      headers.set('Authorization', `Bearer ${match[2]}`)
+    const token = readNeAuthTokenFromDocument()
+    if (token) {
+      headers.set('Authorization', `Bearer ${token}`)
     }
   } else {
     // In SSR, try to read from next/headers

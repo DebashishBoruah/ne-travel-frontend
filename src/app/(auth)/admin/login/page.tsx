@@ -1,10 +1,10 @@
 'use client'
 
-import { useState } from 'react'
-import { Mail, Lock, ArrowRight, Shield, User as UserIcon, Info } from 'lucide-react'
+import { useState, Suspense } from 'react'
+import { Mail, Lock, ArrowRight, Shield, User as UserIcon, AlertCircle } from 'lucide-react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Suspense } from 'react'
 import { apiFetch } from '@/lib/api'
+import { persistAuthSessionFromClient } from '@/features/auth/actions'
 import type { UserRole } from '@/types'
 
 function AdminLoginContent() {
@@ -12,13 +12,13 @@ function AdminLoginContent() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
-  const role: UserRole = 'admin' // Fixed role for this route
+  const role: UserRole = 'admin'
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  
+
   const router = useRouter()
   const searchParams = useSearchParams()
-  const redirect = searchParams.get('redirect') || '/admin/approvals'
+  const redirect = searchParams.get('redirect') || '/admin'
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -27,14 +27,14 @@ function AdminLoginContent() {
 
     try {
       const endpoint = mode === 'login' ? '/api/auth/login' : '/api/auth/register'
-      const payload = mode === 'login' 
-        ? { email, password } 
+      const payload = mode === 'login'
+        ? { email, password }
         : { email, password, name, role }
 
       const res = await apiFetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       })
       const data = await res.json()
 
@@ -44,86 +44,126 @@ function AdminLoginContent() {
         return
       }
 
-      document.cookie = `ne_auth_token=${data.token}; path=/; max-age=604800`
-      handleRedirect()
-
-    } catch (err) {
+      document.cookie = `ne_auth_token=${encodeURIComponent(data.token)}; path=/; max-age=604800; samesite=lax`
+      await persistAuthSessionFromClient(data.token)
+      window.location.href = redirect
+    } catch {
       setError('An unexpected error occurred. Please try again.')
       setLoading(false)
     }
   }
 
-  const handleRedirect = () => {
-    document.cookie = "mock-auth=true; path=/; max-age=3600"
-    window.location.href = redirect
-  }
-
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #0f172a, #1e293b)', padding: '1rem' }}>
-      <div className="card" style={{ width: '100%', maxWidth: 420, padding: '2.5rem', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)', background: 'white', borderRadius: '1.5rem' }}>
-        <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
-          <div style={{ width: '64px', height: '64px', background: 'var(--color-primary)', borderRadius: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem auto', boxShadow: '0 10px 15px -3px rgba(59, 130, 246, 0.4)' }}>
-            <Shield size={32} color="white" />
+    <div className="admin-auth-page">
+      {/* Left brand panel — visible on wider screens */}
+      <div className="admin-auth-brand-panel">
+        <div className="admin-auth-brand-logo">
+          <div className="admin-auth-brand-logo-icon">
+            <Shield size={16} strokeWidth={2.5} />
           </div>
-          <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: '#0f172a', marginBottom: '0.5rem' }}>
-            {mode === 'login' ? 'Admin Portal' : 'Create Admin'}
-          </h1>
-          <p style={{ fontSize: '0.875rem', color: '#64748b' }}>
-            {mode === 'login' ? 'Sign in to manage the platform' : 'Create an admin account'}
-          </p>
+          <span className="admin-auth-brand-logo-text">NorthEastTravel</span>
         </div>
+        <h2 className="admin-auth-brand-heading">
+          Manage destinations, festivals &amp; travel experiences across Northeast India.
+        </h2>
+        <p className="admin-auth-brand-sub">
+          The admin portal gives you full control over content, bookings, users, and platform settings.
+        </p>
+      </div>
 
-        {error && (
-          <div style={{ padding: '0.75rem 1rem', background: '#fee2e2', border: '1px solid #fecaca', borderRadius: '0.5rem', color: '#b91c1c', fontSize: '0.875rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Info size={18} /> {error}
+      {/* Right form panel */}
+      <div className="admin-auth-form-panel">
+        <div className="admin-auth-form-card">
+          <div className="admin-auth-form-header">
+            <h1 className="admin-auth-form-title">
+              {mode === 'login' ? 'Sign in to Admin' : 'Create Admin Account'}
+            </h1>
+            <p className="admin-auth-form-subtitle">
+              {mode === 'login'
+                ? 'Enter your credentials to continue'
+                : 'Set up a new administrator account'}
+            </p>
           </div>
-        )}
 
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-          {mode === 'signup' && (
-            <div className="form-group">
-              <label className="form-label" style={{ fontWeight: 600, color: '#334155', display: 'block', marginBottom: '0.5rem' }}>Full Name</label>
-              <div style={{ position: 'relative' }}>
-                <UserIcon size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-                <input type="text" className="form-input" style={{ width: '100%', padding: '0.75rem 1rem 0.75rem 2.75rem', borderRadius: '0.75rem', border: '1px solid #e2e8f0' }} placeholder="Admin Name" value={name} onChange={(e) => setName(e.target.value)} required />
-              </div>
+          {error && (
+            <div className="admin-auth-error">
+              <AlertCircle size={16} /> {error}
             </div>
           )}
 
-          <div className="form-group">
-            <label className="form-label" style={{ fontWeight: 600, color: '#334155', display: 'block', marginBottom: '0.5rem' }}>Email Address</label>
-            <div style={{ position: 'relative' }}>
-              <Mail size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-              <input type="email" className="form-input" style={{ width: '100%', padding: '0.75rem 1rem 0.75rem 2.75rem', borderRadius: '0.75rem', border: '1px solid #e2e8f0' }} placeholder="admin@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
-            </div>
-          </div>
-
-          <div className="form-group">
-            <label className="form-label" style={{ fontWeight: 600, color: '#334155', display: 'block', marginBottom: '0.5rem' }}>Password</label>
-            <div style={{ position: 'relative' }}>
-              <Lock size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-              <input type="password" className="form-input" style={{ width: '100%', padding: '0.75rem 1rem 0.75rem 2.75rem', borderRadius: '0.75rem', border: '1px solid #e2e8f0' }} placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required />
-            </div>
-          </div>
-
-          <button type="submit" className="btn btn-primary btn-lg w-full" style={{ marginTop: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', height: '3.25rem', fontSize: '1rem', borderRadius: '0.75rem' }} disabled={loading}>
-            {loading ? (mode === 'login' ? 'Authenticating...' : 'Creating Account...') : (
-              <>
-                {mode === 'login' ? 'Sign In as Admin' : 'Create Admin'} <ArrowRight size={20} />
-              </>
+          <form onSubmit={handleSubmit}>
+            {mode === 'signup' && (
+              <div className="admin-auth-field">
+                <label className="admin-auth-field-label">Full Name</label>
+                <div className="admin-auth-input-wrap">
+                  <span className="admin-auth-input-icon"><UserIcon size={16} /></span>
+                  <input
+                    className="admin-auth-input"
+                    type="text"
+                    placeholder="Your name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
             )}
-          </button>
 
-          <div style={{ textAlign: 'center', marginTop: '1.5rem' }}>
-            <button 
-              type="button" 
+            <div className="admin-auth-field">
+              <label className="admin-auth-field-label">Email</label>
+              <div className="admin-auth-input-wrap">
+                <span className="admin-auth-input-icon"><Mail size={16} /></span>
+                <input
+                  className="admin-auth-input"
+                  type="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  autoComplete="email"
+                />
+              </div>
+            </div>
+
+            <div className="admin-auth-field">
+              <label className="admin-auth-field-label">Password</label>
+              <div className="admin-auth-input-wrap">
+                <span className="admin-auth-input-icon"><Lock size={16} /></span>
+                <input
+                  className="admin-auth-input"
+                  type="password"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                />
+              </div>
+            </div>
+
+            <button className="admin-auth-submit" type="submit" disabled={loading}>
+              {loading
+                ? (mode === 'login' ? 'Signing in...' : 'Creating account...')
+                : (
+                  <>
+                    {mode === 'login' ? 'Sign In' : 'Create Account'}
+                    <ArrowRight size={15} />
+                  </>
+                )}
+            </button>
+          </form>
+
+          <div className="admin-auth-toggle">
+            {mode === 'login' ? "Don\u2019t have an account? " : 'Already have an account? '}
+            <button
+              type="button"
+              className="admin-auth-toggle-btn"
               onClick={() => { setMode(mode === 'login' ? 'signup' : 'login'); setError('') }}
-              style={{ fontSize: '0.875rem', color: 'var(--color-primary)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}
             >
-              {mode === 'login' ? "Need to create an admin? Sign up" : 'Already an admin? Sign in'}
+              {mode === 'login' ? 'Sign up' : 'Sign in'}
             </button>
           </div>
-        </form>
+        </div>
       </div>
     </div>
   )
@@ -132,8 +172,10 @@ function AdminLoginContent() {
 export default function AdminLoginPage() {
   return (
     <Suspense fallback={
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0f172a' }}>
-        <div className="spinner" />
+      <div className="admin-auth-page">
+        <div className="admin-auth-form-panel">
+          <div style={{ color: 'var(--admin-text-subtle)', fontSize: '0.8125rem' }}>Loading...</div>
+        </div>
       </div>
     }>
       <AdminLoginContent />

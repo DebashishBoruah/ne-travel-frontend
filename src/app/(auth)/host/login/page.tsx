@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
-import { Mail, Lock, ArrowRight, Shield, User as UserIcon, Info } from 'lucide-react'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { Suspense } from 'react'
+import { useState, Suspense } from 'react'
+import { Mail, Lock, ArrowRight, Home, User as UserIcon, Info, Package, Mountain } from 'lucide-react'
+import { useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 import { apiFetch } from '@/lib/api'
+import { persistAuthSessionFromClient } from '@/features/auth/actions'
 import type { UserRole } from '@/types'
 
 function HostLoginContent() {
@@ -15,8 +16,7 @@ function HostLoginContent() {
   const [role, setRole] = useState<UserRole>('homestay_owner')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  
-  const router = useRouter()
+
   const searchParams = useSearchParams()
   const redirect = searchParams.get('redirect') || '/host/dashboard'
 
@@ -27,14 +27,14 @@ function HostLoginContent() {
 
     try {
       const endpoint = mode === 'login' ? '/api/auth/login' : '/api/auth/register'
-      const payload = mode === 'login' 
-        ? { email, password } 
+      const payload = mode === 'login'
+        ? { email, password }
         : { email, password, name, role }
 
       const res = await apiFetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       })
       const data = await res.json()
 
@@ -44,96 +44,176 @@ function HostLoginContent() {
         return
       }
 
-      document.cookie = `ne_auth_token=${data.token}; path=/; max-age=604800`
-      handleRedirect()
-
-    } catch (err) {
+      document.cookie = `ne_auth_token=${encodeURIComponent(data.token)}; path=/; max-age=604800; samesite=lax`
+      await persistAuthSessionFromClient(data.token)
+      window.location.href = redirect
+    } catch {
       setError('An unexpected error occurred. Please try again.')
       setLoading(false)
     }
   }
 
-  const handleRedirect = () => {
-    document.cookie = "mock-auth=true; path=/; max-age=3600"
-    window.location.href = redirect
-  }
+  const isOperator = role === 'operator'
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #0f172a, #1e293b)', padding: '1rem' }}>
-      <div className="card" style={{ width: '100%', maxWidth: 420, padding: '2.5rem', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)', background: 'white', borderRadius: '1.5rem' }}>
-        <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
-          <div style={{ width: '64px', height: '64px', background: 'var(--color-primary)', borderRadius: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem auto', boxShadow: '0 10px 15px -3px rgba(59, 130, 246, 0.4)' }}>
-            <Shield size={32} color="white" />
+    <div className="auth-page">
+      {/* Left visual panel */}
+      <div className="auth-visual" style={{ background: '#0f172a' }}>
+        <div className="auth-visual-bg" style={{ backgroundImage: "url('/hero.png')", opacity: 0.25 }} />
+        <div className="auth-visual-content">
+          <Link href="/" className="auth-brand">
+            <Mountain size={28} />
+            <span>NorthEast<strong>Travel</strong></span>
+          </Link>
+
+          <div className="auth-visual-text">
+            <h2>Grow your business with us</h2>
+            <p>
+              {isOperator
+                ? 'Create and manage tour packages across Northeast India. Reach thousands of travellers looking for authentic experiences.'
+                : 'List your property on our platform and welcome travellers from across the globe to experience authentic Northeast Indian hospitality.'}
+            </p>
           </div>
-          <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: '#0f172a', marginBottom: '0.5rem' }}>
-            {mode === 'login' ? 'Host Portal' : 'Join as a Host'}
-          </h1>
-          <p style={{ fontSize: '0.875rem', color: '#64748b' }}>
-            {mode === 'login' ? 'Sign in to manage your properties' : 'Create an account to start hosting'}
-          </p>
+
+          <div className="auth-visual-features">
+            <div className="auth-visual-feature">
+              <Home size={18} />
+              <span>Easy Listing</span>
+            </div>
+            <div className="auth-visual-feature">
+              <Package size={18} />
+              <span>Package Builder</span>
+            </div>
+            <div className="auth-visual-feature">
+              <ArrowRight size={18} />
+              <span>Instant Bookings</span>
+            </div>
+          </div>
         </div>
+      </div>
 
-        {error && (
-          <div style={{ padding: '0.75rem 1rem', background: '#fee2e2', border: '1px solid #fecaca', borderRadius: '0.5rem', color: '#b91c1c', fontSize: '0.875rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Info size={18} /> {error}
+      {/* Right form panel */}
+      <div className="auth-form-panel">
+        <div className="auth-form-wrapper">
+          <div className="auth-form-header">
+            <h1>{mode === 'login' ? 'Host Sign In' : 'Become a Host'}</h1>
+            <p>{mode === 'login' ? 'Enter your credentials to access your dashboard' : 'Create an account to start hosting travellers'}</p>
           </div>
-        )}
 
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-          {mode === 'signup' && (
-            <div className="form-group">
-              <label className="form-label" style={{ fontWeight: 600, color: '#334155', display: 'block', marginBottom: '0.5rem' }}>Full Name</label>
-              <div style={{ position: 'relative' }}>
-                <UserIcon size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-                <input type="text" className="form-input" style={{ width: '100%', padding: '0.75rem 1rem 0.75rem 2.75rem', borderRadius: '0.75rem', border: '1px solid #e2e8f0' }} placeholder="John Doe" value={name} onChange={(e) => setName(e.target.value)} required />
-              </div>
+          {error && (
+            <div className="auth-error">
+              <Info size={16} /> {error}
             </div>
           )}
 
-          <div className="form-group">
-            <label className="form-label" style={{ fontWeight: 600, color: '#334155', display: 'block', marginBottom: '0.5rem' }}>Email Address</label>
-            <div style={{ position: 'relative' }}>
-              <Mail size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-              <input type="email" className="form-input" style={{ width: '100%', padding: '0.75rem 1rem 0.75rem 2.75rem', borderRadius: '0.75rem', border: '1px solid #e2e8f0' }} placeholder="name@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
-            </div>
-          </div>
-
-          <div className="form-group">
-            <label className="form-label" style={{ fontWeight: 600, color: '#334155', display: 'block', marginBottom: '0.5rem' }}>Password</label>
-            <div style={{ position: 'relative' }}>
-              <Lock size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-              <input type="password" className="form-input" style={{ width: '100%', padding: '0.75rem 1rem 0.75rem 2.75rem', borderRadius: '0.75rem', border: '1px solid #e2e8f0' }} placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required />
-            </div>
-          </div>
-
-          {mode === 'signup' && (
-            <div className="form-group">
-              <label className="form-label" style={{ fontWeight: 600, color: '#334155', display: 'block', marginBottom: '0.5rem' }}>I am a...</label>
-              <select className="form-input" style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '0.75rem', border: '1px solid #e2e8f0' }} value={role} onChange={(e) => setRole(e.target.value as UserRole)}>
-                <option value="homestay_owner">🏠 Host (Property Owner)</option>
-                <option value="operator">🗺️ Operator (Tour Creator)</option>
-              </select>
-            </div>
-          )}
-
-          <button type="submit" className="btn btn-primary btn-lg w-full" style={{ marginTop: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', height: '3.25rem', fontSize: '1rem', borderRadius: '0.75rem' }} disabled={loading}>
-            {loading ? (mode === 'login' ? 'Authenticating...' : 'Creating Account...') : (
+          <form onSubmit={handleSubmit} className="auth-form">
+            {mode === 'signup' && (
               <>
-                {mode === 'login' ? 'Sign In' : 'Create Account'} <ArrowRight size={20} />
+                <div className="auth-field">
+                  <label>Full Name</label>
+                  <div className="auth-input-wrap">
+                    <UserIcon size={17} />
+                    <input
+                      type="text"
+                      placeholder="Your name"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* Role selector */}
+                <div className="auth-field">
+                  <label>I want to...</label>
+                  <div className="auth-role-picker">
+                    <button
+                      type="button"
+                      className={`auth-role-option${role === 'homestay_owner' ? ' active' : ''}`}
+                      onClick={() => setRole('homestay_owner')}
+                    >
+                      <Home size={20} />
+                      <span className="auth-role-option-title">List a Property</span>
+                      <span className="auth-role-option-desc">Homestay owner</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={`auth-role-option${role === 'operator' ? ' active' : ''}`}
+                      onClick={() => setRole('operator')}
+                    >
+                      <Package size={20} />
+                      <span className="auth-role-option-title">Create Tours</span>
+                      <span className="auth-role-option-desc">Tour operator</span>
+                    </button>
+                  </div>
+                </div>
               </>
             )}
+
+            <div className="auth-field">
+              <label>Email</label>
+              <div className="auth-input-wrap">
+                <Mail size={17} />
+                <input
+                  type="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  autoComplete="email"
+                />
+              </div>
+            </div>
+
+            <div className="auth-field">
+              <label>Password</label>
+              <div className="auth-input-wrap">
+                <Lock size={17} />
+                <input
+                  type="password"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                />
+              </div>
+            </div>
+
+            {mode === 'login' && (
+              <div className="auth-forgot">
+                <button type="button">Forgot password?</button>
+              </div>
+            )}
+
+            <button type="submit" className="auth-submit" disabled={loading}>
+              {loading ? (
+                <span>{mode === 'login' ? 'Signing in...' : 'Creating account...'}</span>
+              ) : (
+                <>
+                  <span>{mode === 'login' ? 'Sign in' : 'Create account'}</span>
+                  <ArrowRight size={18} />
+                </>
+              )}
+            </button>
+          </form>
+
+          <div className="auth-divider">
+            <span>or</span>
+          </div>
+
+          <button
+            type="button"
+            className="auth-toggle"
+            onClick={() => { setMode(mode === 'login' ? 'signup' : 'login'); setError('') }}
+          >
+            {mode === 'login' ? "Don't have an account? Sign up" : 'Already have an account? Sign in'}
           </button>
 
-          <div style={{ textAlign: 'center', marginTop: '1.5rem' }}>
-            <button 
-              type="button" 
-              onClick={() => { setMode(mode === 'login' ? 'signup' : 'login'); setError('') }}
-              style={{ fontSize: '0.875rem', color: 'var(--color-primary)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}
-            >
-              {mode === 'login' ? "Don't have an account? Sign up" : 'Already have an account? Sign in'}
-            </button>
-          </div>
-        </form>
+          <p className="auth-terms">
+            By continuing, you agree to our <a href="#">Terms</a> and <a href="#">Privacy Policy</a>.
+          </p>
+        </div>
       </div>
     </div>
   )
@@ -142,7 +222,7 @@ function HostLoginContent() {
 export default function HostLoginPage() {
   return (
     <Suspense fallback={
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0f172a' }}>
+      <div className="auth-page" style={{ alignItems: 'center', justifyContent: 'center' }}>
         <div className="spinner" />
       </div>
     }>

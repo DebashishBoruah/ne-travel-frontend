@@ -3,7 +3,7 @@
 import { useParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Star, Clock, Users, MapPin, Shield, Truck, ArrowLeft, Calendar as CalIcon, CheckCircle } from 'lucide-react'
+import { Star, Clock, Users, MapPin, Shield, Truck, ArrowLeft } from 'lucide-react'
 import { apiFetch } from '@/lib/api'
 import { BookingWidget } from '@/components/shared/BookingWidget'
 
@@ -17,10 +17,7 @@ export default function PackageDetailPage() {
     async function fetchPackage() {
       try {
         const res = await apiFetch(`/api/packages/${slug}`)
-        if (res.ok) {
-          const data = await res.json()
-          setPkg(data)
-        }
+        if (res.ok) setPkg(await res.json())
       } catch (e) {
         console.error('Failed to fetch package:', e)
       } finally {
@@ -30,70 +27,110 @@ export default function PackageDetailPage() {
     fetchPackage()
   }, [slug])
 
-  if (loading) return <div className="container section center">Loading package...</div>
-  if (!pkg) return <div className="container section center">Package not found</div>
+  if (loading) {
+    return (
+      <div className="container section">
+        <div className="t-skeleton" style={{ height: 20, width: 140, marginBottom: '1.5rem' }} />
+        <div className="t-skeleton" style={{ height: 400, borderRadius: 'var(--radius-xl)', marginBottom: '2rem' }} />
+        <div className="t-skeleton t-skeleton-line medium" />
+        <div className="t-skeleton t-skeleton-line" />
+        <div className="t-skeleton t-skeleton-line short" />
+      </div>
+    )
+  }
 
-  const itineraryDays = pkg.itinerary ? pkg.itinerary.split('\n').filter((d: string) => d.trim()) : []
+  if (!pkg) {
+    return (
+      <div className="container section">
+        <div className="t-empty">
+          <div className="t-empty-icon"><MapPin size={40} /></div>
+          <div className="t-empty-title">Package not found</div>
+          <div className="t-empty-desc">This package may have been removed or is no longer available.</div>
+          <Link href="/packages" className="btn btn-primary">Browse Packages</Link>
+        </div>
+      </div>
+    )
+  }
+
+  const itineraryDays = pkg.itinerary
+    ? pkg.itinerary.split('\n').filter((d: string) => d.trim())
+    : []
 
   return (
     <div className="container section">
-      <Link href="/packages" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', color: 'var(--color-text-light)', fontSize: 'var(--font-size-sm)', marginBottom: '1.5rem' }}>
+      <Link href="/packages" className="t-back-link">
         <ArrowLeft size={18} /> Back to Packages
       </Link>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: '2rem' }}>
+      <div className="t-detail-layout">
         <div>
-          {/* Hero Image */}
-          <div style={{ height: 400, borderRadius: 'var(--radius-xl)', overflow: 'hidden', marginBottom: '2rem', background: 'linear-gradient(135deg, var(--color-forest-100), var(--color-forest-300))', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-forest-500)' }}>
-            {pkg.photos?.[0] ? <img src={pkg.photos[0]} alt={pkg.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <MapPin size={48} />}
+          <div className="t-detail-hero-img">
+            {pkg.photos?.[0] ? (
+              <img src={pkg.photos[0]} alt={pkg.name} />
+            ) : (
+              <MapPin size={48} />
+            )}
           </div>
 
-          <span className="badge badge-primary">{pkg.homestay?.state || 'Meghalaya'}</span>
+          <span className="badge badge-primary" style={{ marginBottom: '0.5rem', display: 'inline-block' }}>
+            {pkg.homestay?.state || 'Northeast India'}
+          </span>
           <h1 style={{ fontSize: 'var(--font-size-4xl)', margin: '0.5rem 0 1rem' }}>{pkg.name}</h1>
 
-          <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', marginBottom: '1.5rem', paddingBottom: '1.5rem', borderBottom: '1px solid var(--color-border)' }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: 'var(--font-size-sm)', color: 'var(--color-text-light)' }}><Clock size={16}/> {pkg.duration_days} days</span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: 'var(--font-size-sm)', color: 'var(--color-text-light)' }}><Users size={16}/> Max {pkg.max_group_size} people</span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: 'var(--font-size-sm)', color: 'var(--color-saffron-500)' }}><Star size={16} fill="currentColor"/> {pkg.rating || '4.8'} ({pkg.reviews_count || '24'} reviews)</span>
+          <div className="t-detail-meta">
+            <div className="t-detail-meta-item">
+              <Clock size={16} /> {pkg.duration_days} days
+            </div>
+            <div className="t-detail-meta-item">
+              <Users size={16} /> Max {pkg.max_group_size} people
+            </div>
+            <div className="t-rating">
+              <Star size={16} fill="currentColor" /> {pkg.rating || '4.8'} ({pkg.reviews_count || '—'} reviews)
+            </div>
           </div>
 
-          <div style={{ marginBottom: '2rem' }}>
-            <h2 style={{ fontSize: 'var(--font-size-xl)', marginBottom: '0.75rem' }}>About This Package</h2>
-            <p style={{ lineHeight: 1.8, color: 'var(--color-text)' }}>
-              {pkg.description}
-            </p>
+          <div className="t-detail-section">
+            <h2>About This Package</h2>
+            <p>{pkg.description}</p>
           </div>
 
           {itineraryDays.length > 0 && (
-            <div style={{ marginBottom: '2rem' }}>
-              <h2 style={{ fontSize: 'var(--font-size-xl)', marginBottom: '0.75rem' }}>Day-by-Day Itinerary</h2>
+            <div className="t-detail-section">
+              <h2>Day-by-Day Itinerary</h2>
               {itineraryDays.map((day: string, i: number) => (
-                <div key={i} style={{ display: 'flex', gap: '1rem', padding: '0.75rem 0', borderBottom: '1px solid var(--color-border)' }}>
-                  <span style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--color-forest-100)', color: 'var(--color-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 'var(--font-size-sm)', flexShrink: 0 }}>{i + 1}</span>
-                  <span style={{ fontSize: 'var(--font-size-sm)', paddingTop: '0.25rem' }}>{day}</span>
+                <div key={i} className="t-itin-day">
+                  <div className="t-itin-day-num">{i + 1}</div>
+                  <div className="t-itin-day-content">
+                    <div className="t-itin-day-desc">{day}</div>
+                  </div>
                 </div>
               ))}
             </div>
           )}
 
-          <div style={{ marginBottom: '2rem' }}>
-            <h2 style={{ fontSize: 'var(--font-size-xl)', marginBottom: '0.75rem' }}>What&apos;s Included</h2>
-            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-              {pkg.includes_permits && <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem', background: 'var(--color-forest-50)', borderRadius: 'var(--radius-lg)', fontSize: 'var(--font-size-sm)', color: 'var(--color-primary)', fontWeight: 500 }}><Shield size={18} /> Permits Included</div>}
-              {pkg.includes_transport && <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem', background: 'var(--color-forest-50)', borderRadius: 'var(--radius-lg)', fontSize: 'var(--font-size-sm)', color: 'var(--color-primary)', fontWeight: 500 }}><Truck size={18} /> Transport Included</div>}
-              {pkg.includes_guide && <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem', background: 'var(--color-forest-50)', borderRadius: 'var(--radius-lg)', fontSize: 'var(--font-size-sm)', color: 'var(--color-primary)', fontWeight: 500 }}><Users size={18} /> Local Guide</div>}
+          <div className="t-detail-section">
+            <h2>What&apos;s Included</h2>
+            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+              {pkg.includes_permits && (
+                <div className="t-inclusion-pill"><Shield size={18} /> Permits Included</div>
+              )}
+              {pkg.includes_transport && (
+                <div className="t-inclusion-pill"><Truck size={18} /> Transport Included</div>
+              )}
+              {pkg.includes_guide && (
+                <div className="t-inclusion-pill"><Users size={18} /> Local Guide</div>
+              )}
             </div>
           </div>
 
-          <div style={{ marginBottom: '2rem' }}>
-            <h2 style={{ fontSize: 'var(--font-size-xl)', marginBottom: '0.75rem' }}>Reviews</h2>
-            <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--color-text-light)', background: 'var(--color-slate-50)', borderRadius: 'var(--radius-lg)' }}>
-              Reviews will appear here when connected to Supabase
+          <div className="t-detail-section">
+            <h2>Reviews</h2>
+            <div className="t-empty" style={{ padding: '2rem', background: 'var(--color-slate-50)', borderRadius: 'var(--radius-lg)' }}>
+              <div className="t-empty-desc" style={{ marginBottom: 0 }}>No reviews yet for this package.</div>
             </div>
           </div>
         </div>
 
-        {/* Sidebar - Booking */}
         <div>
           <BookingWidget
             packageId={pkg.id}
@@ -104,13 +141,19 @@ export default function PackageDetailPage() {
             itemName={pkg.name}
           />
 
-          <div className="card" style={{ marginTop: '1rem' }}>
-            <div className="card-body" style={{ padding: '1rem' }}>
-              <h4 style={{ fontSize: 'var(--font-size-sm)', marginBottom: '0.5rem' }}>Operator</h4>
-              <p style={{ fontWeight: 600 }}>{pkg.operator?.name || 'NE Adventures'}</p>
-              <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-light)' }}>⭐ 4.8 · 24 reviews</p>
-              <Link href={`/operators/${pkg.operator_id}`} className="btn btn-ghost btn-sm mt-2" style={{ width: '100%' }}>View Profile</Link>
+          <div className="t-info-card">
+            <div className="t-info-card-title">Operator</div>
+            <p style={{ fontWeight: 600 }}>{pkg.operator?.name || 'NE Adventures'}</p>
+            <div className="t-rating" style={{ margin: '0.25rem 0 0.75rem' }}>
+              <Star size={14} fill="currentColor" /> 4.8 · 24 reviews
             </div>
+            <Link
+              href={`/operators/${pkg.operator_id}`}
+              className="btn btn-ghost btn-sm"
+              style={{ width: '100%' }}
+            >
+              View Profile
+            </Link>
           </div>
         </div>
       </div>

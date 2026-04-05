@@ -3,7 +3,7 @@
 import { useParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { MapPin, Star, Users, ArrowLeft, Wifi, CheckCircle } from 'lucide-react'
+import { MapPin, Star, Users, ArrowLeft, CheckCircle } from 'lucide-react'
 import { apiFetch } from '@/lib/api'
 import { BookingWidget } from '@/components/shared/BookingWidget'
 
@@ -17,10 +17,7 @@ export default function HomestayDetailPage() {
     async function fetchListing() {
       try {
         const res = await apiFetch(`/api/listings/${slug}`)
-        if (res.ok) {
-          const data = await res.json()
-          setListing(data)
-        }
+        if (res.ok) setListing(await res.json())
       } catch (e) {
         console.error('Failed to fetch listing:', e)
       } finally {
@@ -30,62 +27,91 @@ export default function HomestayDetailPage() {
     fetchListing()
   }, [slug])
 
-  if (loading) return <div className="container section center">Loading listing...</div>
-  if (!listing) return <div className="container section center">Listing not found</div>
+  if (loading) {
+    return (
+      <div className="container section">
+        <div className="t-skeleton" style={{ height: 20, width: 140, marginBottom: '1.5rem' }} />
+        <div className="t-skeleton" style={{ height: 400, borderRadius: 'var(--radius-xl)', marginBottom: '2rem' }} />
+        <div className="t-skeleton t-skeleton-line medium" />
+        <div className="t-skeleton t-skeleton-line" />
+      </div>
+    )
+  }
+
+  if (!listing) {
+    return (
+      <div className="container section">
+        <div className="t-empty">
+          <div className="t-empty-icon"><MapPin size={40} /></div>
+          <div className="t-empty-title">Homestay not found</div>
+          <div className="t-empty-desc">This listing may have been removed or is no longer available.</div>
+          <Link href="/homestays" className="btn btn-primary">Browse Homestays</Link>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="container section">
-      <Link href="/homestays" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', color: 'var(--color-text-light)', fontSize: 'var(--font-size-sm)', marginBottom: '1.5rem' }}>
+      <Link href="/homestays" className="t-back-link">
         <ArrowLeft size={18} /> Back to Homestays
       </Link>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: '2rem' }}>
+      <div className="t-detail-layout">
         <div>
-          <div style={{ height: 400, borderRadius: 'var(--radius-xl)', overflow: 'hidden', marginBottom: '2rem', background: 'linear-gradient(135deg, var(--color-earth-100), var(--color-earth-300))', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-earth-500)' }}>
-            {listing.photos?.[0] ? <img src={listing.photos[0]} alt={listing.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <MapPin size={48} />}
+          <div className="t-detail-hero-img" style={{ background: 'linear-gradient(135deg, var(--color-earth-100), var(--color-earth-300))', color: 'var(--color-earth-500)' }}>
+            {listing.photos?.[0] || listing.hero_image ? (
+              <img src={listing.photos?.[0] || listing.hero_image} alt={listing.name} />
+            ) : (
+              <MapPin size={48} />
+            )}
           </div>
 
-          <span className="badge badge-primary">{listing.state}</span>
+          <span className="badge badge-primary" style={{ marginBottom: '0.5rem', display: 'inline-block' }}>
+            {listing.state}
+          </span>
           <h1 style={{ fontSize: 'var(--font-size-4xl)', margin: '0.5rem 0' }}>{listing.name}</h1>
           <p style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', color: 'var(--color-saffron-500)', fontWeight: 600, marginBottom: '1.5rem' }}>
             <Star size={16} fill="currentColor" /> {listing.rating || '4.8'} · {listing.reviews || 'New'}
           </p>
 
-          <div style={{ marginBottom: '2rem' }}>
-            <h2 style={{ fontSize: 'var(--font-size-xl)', marginBottom: '0.75rem' }}>About This Homestay</h2>
-            <p style={{ lineHeight: 1.8 }}>
-              {listing.description}
-            </p>
+          <div className="t-detail-section">
+            <h2>About This Homestay</h2>
+            <p>{listing.description}</p>
           </div>
 
-          <div style={{ marginBottom: '2rem' }}>
-            <h2 style={{ fontSize: 'var(--font-size-xl)', marginBottom: '0.75rem' }}>Amenities</h2>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '0.75rem' }}>
+          <div className="t-detail-section">
+            <h2>Amenities</h2>
+            <div className="t-amenity-grid">
               {(listing.amenities || []).map((a: string) => (
-                <div key={a} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: 'var(--font-size-sm)' }}>
+                <div key={a} className="t-amenity-item">
                   <CheckCircle size={16} style={{ color: 'var(--color-success)' }} /> {a}
                 </div>
               ))}
             </div>
           </div>
 
-          <div style={{ marginBottom: '2rem' }}>
-            <h2 style={{ fontSize: 'var(--font-size-xl)', marginBottom: '0.75rem' }}>Languages Spoken</h2>
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-              {(listing.languages || []).map((l: string) => <span key={l} className="badge badge-neutral">{l}</span>)}
+          {(listing.languages || []).length > 0 && (
+            <div className="t-detail-section">
+              <h2>Languages Spoken</h2>
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                {listing.languages.map((l: string) => (
+                  <span key={l} className="badge badge-neutral">{l}</span>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
-          <div style={{ marginBottom: '2rem' }}>
-            <h2 style={{ fontSize: 'var(--font-size-xl)', marginBottom: '0.75rem' }}>Reviews</h2>
-            <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--color-text-light)', background: 'var(--color-slate-50)', borderRadius: 'var(--radius-lg)' }}>
-              No reviews yet for this listing.
+          <div className="t-detail-section">
+            <h2>Reviews</h2>
+            <div className="t-empty" style={{ padding: '2rem', background: 'var(--color-slate-50)', borderRadius: 'var(--radius-lg)' }}>
+              <div className="t-empty-desc" style={{ marginBottom: 0 }}>No reviews yet for this listing.</div>
             </div>
           </div>
         </div>
 
         <div>
-          <BookingWidget 
+          <BookingWidget
             homestayId={listing.id}
             operatorId={listing.owner_id}
             operatorName={listing.owner?.name || 'Local Host'}
@@ -93,13 +119,23 @@ export default function HomestayDetailPage() {
             itemName={listing.name}
           />
 
-          <div className="card" style={{ marginTop: '1rem' }}>
-            <div className="card-body" style={{ padding: '1rem' }}>
-              <h4 style={{ fontSize: 'var(--font-size-sm)', marginBottom: '0.5rem' }}>📍 Location</h4>
-              <div style={{ background: 'var(--color-slate-50)', borderRadius: 'var(--radius-lg)', padding: '2rem', textAlign: 'center', color: 'var(--color-text-light)' }}>
-                <MapPin size={24} /><br/>{listing.state}
-              </div>
+          <div className="t-info-card">
+            <div className="t-info-card-title">
+              <MapPin size={16} /> Location
             </div>
+            <div className="t-map-placeholder">
+              <MapPin size={24} />
+              <span>{listing.state}</span>
+            </div>
+          </div>
+
+          <div className="t-info-card">
+            <div className="t-info-card-title">
+              <Users size={16} /> Capacity
+            </div>
+            <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-light)' }}>
+              Up to {listing.max_guests || listing.maxGuests || '—'} guests
+            </p>
           </div>
         </div>
       </div>

@@ -2,33 +2,34 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { MapPin, Star, Users, Search, ArrowRight } from 'lucide-react'
+import { MapPin, Search, ArrowRight, Clock, Star, Users } from 'lucide-react'
 import { NE_STATES } from '@/lib/types'
 import { apiFetch } from '@/lib/api'
 
-export default function HomestaysPage() {
-  const [homestays, setHomestays] = useState<any[]>([])
+export default function PackagesPage() {
+  const [packages, setPackages] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedState, setSelectedState] = useState('all')
   const [search, setSearch] = useState('')
 
   useEffect(() => {
-    async function fetchHomestays() {
+    async function fetchPackages() {
       try {
-        const res = await apiFetch('/api/listings')
-        if (res.ok) setHomestays(await res.json())
+        const res = await apiFetch('/api/packages')
+        if (res.ok) setPackages(await res.json())
       } catch (e) {
-        console.error('Failed to fetch homestays:', e)
+        console.error('Failed to fetch packages:', e)
       } finally {
         setLoading(false)
       }
     }
-    fetchHomestays()
+    fetchPackages()
   }, [])
 
-  const filtered = homestays.filter((h) => {
-    const matchesState = selectedState === 'all' || h.state === selectedState
-    const matchesSearch = !search || h.name?.toLowerCase().includes(search.toLowerCase())
+  const filtered = packages.filter((p) => {
+    const state = p.homestay?.state || p.state || ''
+    const matchesState = selectedState === 'all' || state === selectedState
+    const matchesSearch = !search || p.name?.toLowerCase().includes(search.toLowerCase())
     return matchesState && matchesSearch
   })
 
@@ -36,15 +37,15 @@ export default function HomestaysPage() {
     <>
       <div className="page-hero">
         <div className="container">
-          <h1 className="page-hero-title">Homestays</h1>
+          <h1 className="page-hero-title">Tour Packages</h1>
           <p className="page-hero-sub">
-            Stay with local families and experience authentic Northeast Indian hospitality
+            Curated multi-day experiences across Northeast India, led by local operators
           </p>
           <div className="page-hero-search">
             <Search size={18} className="page-hero-search-icon" />
             <input
               type="text"
-              placeholder="Search homestays..."
+              placeholder="Search packages..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="page-hero-search-input"
@@ -61,7 +62,7 @@ export default function HomestaysPage() {
               <button key={s} className={`listing-chip${selectedState === s ? ' active' : ''}`} onClick={() => setSelectedState(s)}>{s}</button>
             ))}
           </div>
-          {!loading && <span className="listing-count">{filtered.length} homestay{filtered.length !== 1 ? 's' : ''}</span>}
+          {!loading && <span className="listing-count">{filtered.length} package{filtered.length !== 1 ? 's' : ''}</span>}
         </div>
       </div>
 
@@ -73,50 +74,53 @@ export default function HomestaysPage() {
         ) : filtered.length === 0 ? (
           <div className="listing-empty">
             <MapPin size={48} strokeWidth={1} />
-            <h3>No homestays found</h3>
-            <p>{search ? `No results for "${search}".` : selectedState !== 'all' ? `No homestays in ${selectedState} yet.` : 'Homestays will appear here once listed.'}</p>
+            <h3>No packages found</h3>
+            <p>
+              {search
+                ? `No results for "${search}".`
+                : selectedState !== 'all'
+                  ? `No packages in ${selectedState} yet.`
+                  : 'Tour packages will appear here once published.'}
+            </p>
             {(search || selectedState !== 'all') && (
               <button className="listing-empty-reset" onClick={() => { setSearch(''); setSelectedState('all') }}>Clear filters</button>
             )}
           </div>
         ) : (
           <div className="listing-grid">
-            {filtered.map((h) => (
-              <Link href={`/homestays/${h.slug}`} key={h.slug} className="listing-card">
+            {filtered.map((pkg) => (
+              <Link href={`/packages/${pkg.slug || pkg.id}`} key={pkg.id} className="listing-card">
                 <div className="listing-card-img">
-                  {h.photos?.[0] || h.hero_image ? (
-                    <img src={h.photos?.[0] || h.hero_image} alt={h.name} />
+                  {pkg.photos?.[0] ? (
+                    <img src={pkg.photos[0]} alt={pkg.name} />
                   ) : (
-                    <div className="listing-card-img-fallback listing-card-img-fallback--warm">
+                    <div className="listing-card-img-fallback">
                       <MapPin size={28} strokeWidth={1.5} />
                     </div>
                   )}
                   <div className="listing-card-img-overlay" />
-                  <span className="listing-card-badge">{h.state}</span>
-                  {(h.rating || h.rating === 0) && (
+                  <span className="listing-card-badge">{pkg.homestay?.state || pkg.state || 'NE India'}</span>
+                  {pkg.rating && (
                     <span className="listing-card-rating">
-                      <Star size={12} fill="currentColor" /> {h.rating}
+                      <Star size={12} fill="currentColor" /> {pkg.rating}
                     </span>
                   )}
                 </div>
                 <div className="listing-card-body">
-                  <h3 className="listing-card-title">{h.name}</h3>
-                  <p className="listing-card-sub">
-                    <Users size={12} /> Up to {h.max_guests || h.maxGuests || '—'} guests
-                    {(h.languages || []).length > 0 && ` · ${h.languages.slice(0, 2).join(', ')}`}
-                  </p>
-                  {(h.amenities || []).length > 0 && (
-                    <div className="listing-card-tags">
-                      {h.amenities.slice(0, 3).map((a: string) => (
-                        <span key={a} className="listing-card-tag">{a}</span>
-                      ))}
-                      {h.amenities.length > 3 && <span className="listing-card-tag">+{h.amenities.length - 3}</span>}
-                    </div>
-                  )}
+                  <h3 className="listing-card-title">{pkg.name}</h3>
+                  <p className="listing-card-desc">{pkg.description || 'A curated multi-day travel experience in Northeast India.'}</p>
+                  <div className="listing-card-tags">
+                    {pkg.duration_days && (
+                      <span className="listing-card-tag"><Clock size={10} /> {pkg.duration_days} days</span>
+                    )}
+                    {pkg.max_group_size && (
+                      <span className="listing-card-tag"><Users size={10} /> Max {pkg.max_group_size}</span>
+                    )}
+                  </div>
                   <div className="listing-card-footer">
                     <div className="listing-card-price">
-                      <span className="listing-card-price-amount">₹{(h.price_per_night || h.price || 0).toLocaleString('en-IN')}</span>
-                      <span className="listing-card-price-unit">/night</span>
+                      <span className="listing-card-price-amount">₹{(pkg.total_price || pkg.price || 0).toLocaleString('en-IN')}</span>
+                      <span className="listing-card-price-unit">/person</span>
                     </div>
                     <span className="listing-card-link">View <ArrowRight size={14} /></span>
                   </div>

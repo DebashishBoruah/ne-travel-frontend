@@ -128,14 +128,14 @@ export default function FestivalsAdminPage() {
       )}
 
       {isCreateModalOpen && (
-        <SideModal 
-          isOpen={isCreateModalOpen} 
-          onClose={() => setIsCreateModalOpen(false)} 
+        <SideModal
+          isOpen={isCreateModalOpen}
+          onClose={() => setIsCreateModalOpen(false)}
           title="Add New Festival"
         >
-          <FestivalForm 
-            onSuccess={handleCreateSuccess} 
-            onCancel={() => setIsCreateModalOpen(false)} 
+          <FestivalForm
+            onSuccess={handleCreateSuccess}
+            onCancel={() => setIsCreateModalOpen(false)}
           />
         </SideModal>
       )}

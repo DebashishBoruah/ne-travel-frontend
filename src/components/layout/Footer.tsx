@@ -1,8 +1,8 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Mountain } from 'lucide-react'
+import { Mountain, Mail, Phone, MapPin } from 'lucide-react'
 
 export default function Footer() {
   const [year, setYear] = useState(2024)
@@ -23,6 +23,17 @@ export default function Footer() {
             <p className="footer-tagline">
               Discover the untouched beauty of Northeast India through authentic homestays, curated packages, and local experiences.
             </p>
+            <div className="footer-contact">
+              <span className="footer-contact-item">
+                <Mail size={14} /> hello@neindia.travel
+              </span>
+              <span className="footer-contact-item">
+                <Phone size={14} /> +91 00000 00000
+              </span>
+              <span className="footer-contact-item">
+                <MapPin size={14} /> Guwahati, Assam
+              </span>
+            </div>
           </div>
 
           <div className="footer-section">
@@ -37,19 +48,22 @@ export default function Footer() {
             <h4 className="footer-heading">Plan</h4>
             <Link href="/itinerary-builder" className="footer-link">AI Trip Planner</Link>
             <Link href="/permits" className="footer-link">Permit Guide</Link>
+            <Link href="/login" className="footer-link">Login / Sign Up</Link>
           </div>
 
           <div className="footer-section">
             <h4 className="footer-heading">For Hosts</h4>
-            <Link href="/host" className="footer-link">Host Portal</Link>
-            <Link href="/host/listings/new" className="footer-link">List Your Homestay</Link>
-            <Link href="/host/packages/new" className="footer-link">Create a Package</Link>
+            <Link href="/host/login" className="footer-link">Host Portal</Link>
+            <Link href="/host/login" className="footer-link">List Your Homestay</Link>
+            <Link href="/host/login" className="footer-link">Become an Operator</Link>
           </div>
         </div>
 
         <div className="footer-bottom">
           <p>&copy; {year} NE India Travel. All rights reserved.</p>
-          <p className="footer-states">Assam · Meghalaya · Nagaland · Arunachal Pradesh · Manipur · Mizoram · Tripura · Sikkim</p>
+          <p className="footer-states">
+            Assam · Meghalaya · Nagaland · Arunachal Pradesh · Manipur · Mizoram · Tripura · Sikkim
+          </p>
         </div>
       </div>
     </footer>

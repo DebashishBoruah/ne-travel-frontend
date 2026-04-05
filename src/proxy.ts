@@ -1,99 +1,35 @@
-import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+/**
+ * Next.js 16 "proxy" (formerly middleware).
+ * Protects /admin, /host and /profile routes using the custom-backend JWT
+ * stored in the `ne_auth_token` cookie. The backend validates the token on
+ * every API call; here we only check cookie existence for gating navigation.
+ */
 export async function proxy(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({ request })
+  const { pathname } = request.nextUrl
+  const token = request.cookies.get('ne_auth_token')?.value
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll()
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
-          supabaseResponse = NextResponse.next({ request })
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
-          )
-        },
-      },
-    }
-  )
-
-  // Refresh session
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  const pathname = request.nextUrl.pathname
-
-  // Protect host portal routes
-  if (pathname.startsWith('/host')) {
-    const isMockAuth = request.cookies.get('mock-auth')?.value === 'true'
-
-    if (!user && !isMockAuth) {
+  if (pathname.startsWith('/admin') && !pathname.startsWith('/admin/login')) {
+    if (!token) {
       const url = request.nextUrl.clone()
-      url.pathname = '/login'
+      url.pathname = '/admin/login'
       url.searchParams.set('redirect', pathname)
-      return NextResponse.redirect(url)
-    }
-
-    if (isMockAuth) {
-      return supabaseResponse
-    }
-
-    if (!user) return supabaseResponse // Should not happen due to check above, but for TS
-
-    // Check role
-    const { data: profile } = await supabase
-      .from('users')
-      .select('role')
-      .eq('id', user.id)
-      .single()
-
-    if (profile && !['operator', 'homestay_owner'].includes(profile.role)) {
-      const url = request.nextUrl.clone()
-      url.pathname = '/'
       return NextResponse.redirect(url)
     }
   }
 
-  // Protect admin routes
-  if (pathname.startsWith('/admin')) {
-    const isMockAuth = request.cookies.get('mock-auth')?.value === 'true'
-
-    if (!user && !isMockAuth) {
+  if (pathname.startsWith('/host') && !pathname.startsWith('/host/login')) {
+    if (!token) {
       const url = request.nextUrl.clone()
-      url.pathname = '/login'
+      url.pathname = '/host/login'
       url.searchParams.set('redirect', pathname)
-      return NextResponse.redirect(url)
-    }
-
-    if (isMockAuth) {
-      return supabaseResponse
-    }
-
-    if (!user) return supabaseResponse // Should not happen
-
-    const { data: profile } = await supabase
-      .from('users')
-      .select('role')
-      .eq('id', user.id)
-      .single()
-
-    if (!profile || profile.role !== 'admin') {
-      const url = request.nextUrl.clone()
-      url.pathname = '/'
       return NextResponse.redirect(url)
     }
   }
 
-  // Protect tourist profile
   if (pathname.startsWith('/profile')) {
-    if (!user) {
+    if (!token) {
       const url = request.nextUrl.clone()
       url.pathname = '/login'
       url.searchParams.set('redirect', pathname)
@@ -101,11 +37,13 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  return supabaseResponse
+  return NextResponse.next()
 }
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/admin/:path*',
+    '/host/:path*',
+    '/profile/:path*',
   ],
 }

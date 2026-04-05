@@ -1,18 +1,18 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { apiFetch } from '@/lib/api'
 import { NE_STATES } from '@/types'
-import { Info, UploadCloud, Image as ImageIcon, Plus, X, Search } from 'lucide-react'
+import { Info, Search } from 'lucide-react'
+import { TextField, Select, Button, ImageAttacher, TagInput } from '@/components/admin/ui'
+import type { SelectOption } from '@/components/admin/ui'
 import dynamic from 'next/dynamic'
 import 'leaflet/dist/leaflet.css'
 
-// Dynamically import Leaflet components
-const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false })
-const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false })
-const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false })
+const MapContainer = dynamic(() => import('react-leaflet').then(m => m.MapContainer), { ssr: false })
+const TileLayer = dynamic(() => import('react-leaflet').then(m => m.TileLayer), { ssr: false })
+const Marker = dynamic(() => import('react-leaflet').then(m => m.Marker), { ssr: false })
 
-// Helper to move map
 function MapRecenter({ coords }: { coords: [number, number] }) {
   const { useMap } = require('react-leaflet')
   const map = useMap()
@@ -20,57 +20,73 @@ function MapRecenter({ coords }: { coords: [number, number] }) {
   return null
 }
 
+const TYPE_OPTIONS: SelectOption[] = [
+  { value: 'Cultural', label: 'Cultural' },
+  { value: 'Religious', label: 'Religious' },
+  { value: 'Music', label: 'Music' },
+  { value: 'Food', label: 'Food' },
+  { value: 'Tribal', label: 'Tribal' },
+]
+
+const STATE_OPTIONS: SelectOption[] = NE_STATES.map(s => ({ value: s, label: s }))
+
+const RECURRENCE_OPTIONS: SelectOption[] = [
+  { value: 'Annual', label: 'Annual' },
+  { value: 'Seasonal', label: 'Seasonal' },
+  { value: 'One-time', label: 'One-time' },
+]
+
+const MONTH_OPTIONS: SelectOption[] = [...Array(12)].map((_, i) => ({
+  value: String(i + 1),
+  label: new Date(0, i).toLocaleString('en', { month: 'long' }),
+}))
+
+const CROWD_OPTIONS: SelectOption[] = [
+  { value: 'Low', label: 'Low (Quiet)' },
+  { value: 'Medium', label: 'Medium' },
+  { value: 'High', label: 'High (Energetic)' },
+]
+
 interface FestivalFormProps {
-  initialData?: any;
-  onSuccess?: () => void;
-  onCancel?: () => void;
+  initialData?: Record<string, unknown>
+  onSuccess?: () => void
+  onCancel?: () => void
 }
 
 export default function FestivalForm({ initialData, onSuccess, onCancel }: FestivalFormProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  
-  const [heroFile, setHeroFile] = useState<File | null>(null)
-  const heroInputRef = useRef<HTMLInputElement>(null)
-  const [extraFiles, setExtraFiles] = useState<File[]>([])
-  const extraInputRef = useRef<HTMLInputElement>(null)
+  const isEdit = !!initialData?.id
 
-  const [coords, setCoords] = useState<{lat: number, lng: number} | null>(
-    initialData?.location_geojson ? (typeof initialData.location_geojson === 'string' ? JSON.parse(initialData.location_geojson) : initialData.location_geojson) : null
-  )
+  const [heroFiles, setHeroFiles] = useState<File[]>([])
+  const [galleryFiles, setGalleryFiles] = useState<File[]>([])
+  const [tags, setTags] = useState<string[]>((initialData?.tags as string[]) || [])
+
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(() => {
+    const geo = initialData?.location_geojson
+    if (!geo) return null
+    return typeof geo === 'string' ? JSON.parse(geo) : (geo as { lat: number; lng: number })
+  })
   const [searchQuery, setSearchQuery] = useState('')
-  const [searchResults, setSearchResults] = useState<any[]>([])
+  const [searchResults, setSearchResults] = useState<Array<{ display_name: string; lat: string; lon: string }>>([])
   const [searching, setSearching] = useState(false)
 
-  const [tags, setTags] = useState<string[]>(initialData?.tags || [])
-  const [tagInput, setTagInput] = useState('')
-
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const L = require('leaflet')
-      delete (L.Icon.Default.prototype as any)._getIconUrl;
-      L.Icon.Default.mergeOptions({
-        iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
-        iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
-        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-      });
-    }
+    if (typeof window === 'undefined') return
+    const L = require('leaflet')
+    delete (L.Icon.Default.prototype as Record<string, unknown>)._getIconUrl
+    L.Icon.Default.mergeOptions({
+      iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+      iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+      shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+    })
   }, [])
 
-  const handleAddTag = () => {
-    if (tagInput.trim() && !tags.includes(tagInput.trim())) {
-      setTags([...tags, tagInput.trim()])
-      setTagInput('')
-    }
-  }
-
-  const removeTag = (t: string) => setTags(tags.filter(item => item !== t))
-
-  const uploadSingleFile = async (file: File): Promise<string> => {
-    const formData = new FormData()
-    formData.append('file', file)
-    formData.append('folder', 'festivals')
-    const res = await apiFetch('/api/upload', { method: 'POST', body: formData })
+  const uploadFile = async (file: File): Promise<string> => {
+    const fd = new FormData()
+    fd.append('file', file)
+    fd.append('folder', 'festivals')
+    const res = await apiFetch('/api/upload', { method: 'POST', body: fd })
     const json = await res.json()
     if (!json.success) throw new Error(json.error || 'Upload failed')
     return json.url
@@ -80,386 +96,415 @@ export default function FestivalForm({ initialData, onSuccess, onCancel }: Festi
     if (!searchQuery.trim()) return
     setSearching(true)
     try {
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=3`)
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=5`)
       setSearchResults(await res.json())
-    } catch (err) {
-      console.error(err)
-    } finally {
-      setSearching(false)
-    }
+    } catch { /* silent */ } finally { setSearching(false) }
   }
 
-  const selectLocation = (result: any) => {
-    setCoords({ lat: parseFloat(result.lat), lng: parseFloat(result.lon) })
+  const selectLocation = (r: { lat: string; lon: string; display_name: string }) => {
+    setCoords({ lat: parseFloat(r.lat), lng: parseFloat(r.lon) })
     setSearchResults([])
-    setSearchQuery(result.display_name)
+    setSearchQuery(r.display_name)
   }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setLoading(true)
     setError('')
-
-    const formData = new FormData(e.currentTarget)
+    const fd = new FormData(e.currentTarget)
 
     try {
-      let heroUrl = initialData?.hero_image || ''
-      if (heroFile) heroUrl = await uploadSingleFile(heroFile)
-      else if (!initialData) throw new Error('Hero image is required.')
+      let heroUrl = (initialData?.hero_image as string) || ''
+      if (heroFiles.length) heroUrl = await uploadFile(heroFiles[0])
+      else if (!isEdit) throw new Error('Hero image is required.')
 
-      const uploadedExtras = await Promise.all(extraFiles.map(file => uploadSingleFile(file)))
-      const finalMedias = [...(initialData?.medias || []), ...uploadedExtras]
+      const uploadedGallery = await Promise.all(galleryFiles.map(uploadFile))
+      const existingMedias = (initialData?.medias as string[]) || []
 
       const payload = {
-        name: formData.get('name'),
-        slug: formData.get('slug') || formData.get('name')?.toString().toLowerCase().replace(/\s+/g, '-'),
-        state: formData.get('state'),
-        district: formData.get('district'),
-        location: formData.get('location'),
-        short_description: formData.get('short_description'),
-        description: formData.get('description'),
-        type: formData.get('type'),
-        start_date: formData.get('start_date'),
-        end_date: formData.get('end_date'),
-        recurrence_type: formData.get('recurrence_type'),
-        month: parseInt(formData.get('month') as string),
-        venue_name: formData.get('venue_name'),
-        address: formData.get('address'),
+        name: fd.get('name'),
+        slug: fd.get('slug') || fd.get('name')?.toString().toLowerCase().replace(/\s+/g, '-'),
+        state: fd.get('state'),
+        district: fd.get('district'),
+        location: fd.get('location'),
+        short_description: fd.get('short_description'),
+        description: fd.get('description'),
+        type: fd.get('type'),
+        start_date: fd.get('start_date'),
+        end_date: fd.get('end_date'),
+        recurrence_type: fd.get('recurrence_type'),
+        month: parseInt(fd.get('month') as string),
+        venue_name: fd.get('venue_name'),
+        address: fd.get('address'),
         location_geojson: coords,
         hero_image: heroUrl,
-        medias: finalMedias,
-        videos: (formData.get('videos') as string)?.split(',').map(v => v.trim()).filter(Boolean) || [],
-        history: formData.get('history'),
-        cultural_significance: formData.get('cultural_significance'),
-        rituals: formData.get('rituals'),
-        attire: formData.get('attire'),
-        food: formData.get('food'),
-        entry_fee: formData.get('entry_fee'),
-        booking_link: formData.get('booking_link'),
-        crowd_level: formData.get('crowd_level'),
-        best_day_to_attend: formData.get('best_day_to_attend'),
-        duration: formData.get('duration'),
-        travel_logistics: formData.get('travel_logistics'),
-        accommodation: formData.get('accommodation'),
-        safety_guidelines: formData.get('safety_guidelines'),
-        tags: tags,
-        status: formData.get('status') || 'draft'
+        medias: [...existingMedias, ...uploadedGallery],
+        videos: (fd.get('videos') as string)?.split(',').map(v => v.trim()).filter(Boolean) || [],
+        history: fd.get('history'),
+        cultural_significance: fd.get('cultural_significance'),
+        rituals: fd.get('rituals'),
+        attire: fd.get('attire'),
+        food: fd.get('food'),
+        entry_fee: fd.get('entry_fee'),
+        booking_link: fd.get('booking_link'),
+        crowd_level: fd.get('crowd_level'),
+        best_day_to_attend: fd.get('best_day_to_attend'),
+        duration: fd.get('duration'),
+        travel_logistics: fd.get('travel_logistics'),
+        accommodation: fd.get('accommodation'),
+        safety_guidelines: fd.get('safety_guidelines'),
+        tags,
+        status: fd.get('status') || 'draft',
       }
 
-      const method = initialData?.id ? 'PUT' : 'POST'
-      const url = initialData?.id ? `/api/content/festivals/${initialData.id}` : '/api/content/festivals'
+      const method = isEdit ? 'PUT' : 'POST'
+      const url = isEdit ? `/api/content/festivals/${initialData!.id}` : '/api/content/festivals'
 
       const res = await apiFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       })
-
       const json = await res.json()
       if (json.success) onSuccess?.()
       else setError(json.error || 'Failed to save festival')
-    } catch (err: any) {
-      setError(err.message || 'An error occurred.')
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'An error occurred.')
     } finally {
       setLoading(false)
     }
   }
 
-  const MapContainerAny = MapContainer as any;
-  const TileLayerAny = TileLayer as any;
-  const MarkerAny = Marker as any;
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  const MapContainerAny = MapContainer as any
+  const TileLayerAny = TileLayer as any
+  const MarkerAny = Marker as any
+  /* eslint-enable @typescript-eslint/no-explicit-any */
 
   return (
-    <div className="animate-fade-in" style={{ paddingBottom: '2rem' }}>
+    <form onSubmit={handleSubmit}>
       {error && (
-        <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '0.375rem', padding: '0.75rem 1rem', marginBottom: '1.5rem', color: '#dc2626', fontSize: '0.8125rem', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+        <div className="admin-alert admin-alert-error" style={{ marginBottom: '1.25rem' }}>
           <Info size={16} /> {error}
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-        
-        {/* Core Info */}
-        <div className="admin-card-modern">
-          <div className="admin-card-header">
-            <h3 style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--admin-text-main)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Festival Identity</h3>
+      {/* ── Festival Identity ── */}
+      <div className="admin-form-section">
+        <div className="admin-form-section-header">Festival Identity</div>
+        <div className="admin-form-section-body">
+          <TextField
+            label="Festival Name"
+            name="name"
+            required
+            defaultValue={initialData?.name as string}
+            placeholder="e.g. Hornbill Festival"
+          />
+
+          <div className="admin-form-row admin-form-row--2">
+            <Select
+              label="Festival Type"
+              name="type"
+              options={TYPE_OPTIONS}
+              placeholder="Select Type"
+              defaultValue={initialData?.type as string}
+            />
+            <Select
+              label="State"
+              name="state"
+              required
+              options={STATE_OPTIONS}
+              placeholder="Select State"
+              defaultValue={initialData?.state as string}
+            />
           </div>
-          <div className="admin-card-body">
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="admin-form-group col-span-full">
-              <label className="admin-label">Festival Name <span style={{ color: '#dc2626' }}>*</span></label>
-              <input type="text" name="name" defaultValue={initialData?.name} required className="admin-input" placeholder="e.g. Hornbill Festival" style={{ fontWeight: 600 }} />
-            </div>
+          <TextField
+            label="Short Description"
+            hint="For cards"
+            name="short_description"
+            multiline
+            rows={2}
+            defaultValue={initialData?.short_description as string}
+          />
 
-            <div className="admin-form-group">
-              <label className="admin-label">Festival Type</label>
-              <select name="type" defaultValue={initialData?.type} className="admin-input admin-select">
-                <option value="">Select Type</option>
-                <option value="Cultural">Cultural</option>
-                <option value="Religious">Religious</option>
-                <option value="Music">Music</option>
-                <option value="Food">Food</option>
-                <option value="Tribal">Tribal</option>
-              </select>
-            </div>
-
-            <div className="admin-form-group">
-              <label className="admin-label">State <span style={{ color: '#dc2626' }}>*</span></label>
-              <select name="state" defaultValue={initialData?.state} required className="admin-input admin-select">
-                <option value="">Select State</option>
-                {NE_STATES.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
-
-            <div className="admin-form-group col-span-full">
-              <label className="admin-label">Short Description (for cards)</label>
-              <textarea name="short_description" defaultValue={initialData?.short_description} rows={2} className="admin-input" />
-            </div>
-
-            <div className="admin-form-group col-span-full">
-              <label className="admin-label">Detailed Story (Full Description)</label>
-              <textarea name="description" defaultValue={initialData?.description} rows={3} className="admin-input" />
-            </div>
-          </div>
-          </div>
+          <TextField
+            label="Detailed Story"
+            hint="Full page content"
+            name="description"
+            multiline
+            rows={3}
+            defaultValue={initialData?.description as string}
+          />
         </div>
+      </div>
 
-        {/* Date & Timing */}
-        <div className="admin-card-modern">
-          <div className="admin-card-header">
-            <h3 style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--admin-text-main)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Scheduling & Dynamics</h3>
+      {/* ── Scheduling ── */}
+      <div className="admin-form-section">
+        <div className="admin-form-section-header">Scheduling &amp; Timing</div>
+        <div className="admin-form-section-body">
+          <div className="admin-form-row admin-form-row--2">
+            <TextField
+              label="Start Date"
+              name="start_date"
+              type="date"
+              defaultValue={initialData?.start_date as string}
+            />
+            <TextField
+              label="End Date"
+              name="end_date"
+              type="date"
+              defaultValue={initialData?.end_date as string}
+            />
           </div>
-          <div className="admin-card-body">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="admin-form-group">
-              <label className="admin-label">Start Date</label>
-              <input type="date" name="start_date" defaultValue={initialData?.start_date} className="admin-input" />
-            </div>
-            <div className="admin-form-group">
-              <label className="admin-label">End Date</label>
-              <input type="date" name="end_date" defaultValue={initialData?.end_date} className="admin-input" />
-            </div>
-            <div className="admin-form-group">
-              <label className="admin-label">Recurrence</label>
-              <select name="recurrence_type" defaultValue={initialData?.recurrence_type || 'Annual'} className="admin-input admin-select">
-                <option value="Annual">Annual</option>
-                <option value="Seasonal">Seasonal</option>
-                <option value="One-time">One-time</option>
-              </select>
-            </div>
-            <div className="admin-form-group">
-              <label className="admin-label">Month</label>
-              <select name="month" defaultValue={initialData?.month || 1} required className="admin-input admin-select">
-                {[...Array(12)].map((_, i) => (
-                  <option key={i+1} value={i+1}>{new Date(0, i).toLocaleString('en', { month: 'long' })}</option>
-                ))}
-              </select>
-            </div>
+          <div className="admin-form-row admin-form-row--2">
+            <Select
+              label="Recurrence"
+              name="recurrence_type"
+              options={RECURRENCE_OPTIONS}
+              defaultValue={(initialData?.recurrence_type as string) || 'Annual'}
+            />
+            <Select
+              label="Month"
+              name="month"
+              required
+              options={MONTH_OPTIONS}
+              defaultValue={String(initialData?.month ?? 1)}
+            />
           </div>
         </div>
       </div>
 
-        {/* Cultural Immersion */}
-        <div className="admin-card-modern">
-          <div className="admin-card-header">
-            <h3 style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--admin-text-main)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Cultural Context</h3>
+      {/* ── Cultural Context ── */}
+      <div className="admin-form-section">
+        <div className="admin-form-section-header">Cultural Context</div>
+        <div className="admin-form-section-body">
+          <div className="admin-form-row admin-form-row--2">
+            <TextField
+              label="Cultural Significance"
+              name="cultural_significance"
+              multiline
+              rows={3}
+              defaultValue={initialData?.cultural_significance as string}
+            />
+            <TextField
+              label="History"
+              name="history"
+              multiline
+              rows={3}
+              defaultValue={initialData?.history as string}
+            />
           </div>
-          <div className="admin-card-body">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="admin-form-group">
-                <label className="admin-label">Cultural Significance</label>
-                <textarea name="cultural_significance" defaultValue={initialData?.cultural_significance} rows={3} className="admin-input" />
-              </div>
-              <div className="admin-form-group">
-                <label className="admin-label">History of the Festival</label>
-                <textarea name="history" defaultValue={initialData?.history} rows={3} className="admin-input" />
-              </div>
-              <div className="admin-form-group">
-                <label className="admin-label">Key Rituals & Activities</label>
-                <textarea name="rituals" defaultValue={initialData?.rituals} rows={3} className="admin-input" />
-              </div>
-              <div className="admin-form-group">
-                <label className="admin-label">Traditional Attire</label>
-                <textarea name="attire" defaultValue={initialData?.attire} rows={3} className="admin-input" />
-              </div>
-              <div className="admin-form-group col-span-full">
-                <label className="admin-label">Festive Cuisine</label>
-                <textarea name="food" defaultValue={initialData?.food} rows={2} className="admin-input" />
-              </div>
-            </div>
+          <div className="admin-form-row admin-form-row--2">
+            <TextField
+              label="Key Rituals & Activities"
+              name="rituals"
+              multiline
+              rows={3}
+              defaultValue={initialData?.rituals as string}
+            />
+            <TextField
+              label="Traditional Attire"
+              name="attire"
+              multiline
+              rows={3}
+              defaultValue={initialData?.attire as string}
+            />
           </div>
+          <TextField
+            label="Festive Cuisine"
+            name="food"
+            multiline
+            rows={2}
+            defaultValue={initialData?.food as string}
+          />
         </div>
+      </div>
 
-        {/* Visitor Logistics */}
-        <div className="admin-card-modern">
-          <div className="admin-card-header">
-            <h3 style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--admin-text-main)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Visitor & Logistics Info</h3>
+      {/* ── Visitor & Logistics ── */}
+      <div className="admin-form-section">
+        <div className="admin-form-section-header">Visitor &amp; Logistics</div>
+        <div className="admin-form-section-body">
+          <div className="admin-form-row admin-form-row--3">
+            <TextField
+              label="Entry Fee"
+              name="entry_fee"
+              defaultValue={initialData?.entry_fee as string}
+              placeholder="e.g. Free"
+            />
+            <Select
+              label="Crowd Level"
+              name="crowd_level"
+              options={CROWD_OPTIONS}
+              placeholder="Select Level"
+              defaultValue={initialData?.crowd_level as string}
+            />
+            <TextField
+              label="Best Day to Attend"
+              name="best_day_to_attend"
+              defaultValue={initialData?.best_day_to_attend as string}
+              placeholder="e.g. Day 1 (Opening)"
+            />
           </div>
-          <div className="admin-card-body">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-              <div className="admin-form-group">
-                <label className="admin-label">Entry Fee</label>
-                <input type="text" name="entry_fee" defaultValue={initialData?.entry_fee} className="admin-input" placeholder="e.g. Free" />
-              </div>
-              <div className="admin-form-group">
-                <label className="admin-label">Crowd Level</label>
-                <select name="crowd_level" defaultValue={initialData?.crowd_level} className="admin-input admin-select">
-                  <option value="">Select Level</option>
-                  <option value="Low">Low (Quiet)</option>
-                  <option value="Medium">Medium</option>
-                  <option value="High">High (Energetic)</option>
-                </select>
-              </div>
-              <div className="admin-form-group">
-                <label className="admin-label">Best Day to Attend</label>
-                <input type="text" name="best_day_to_attend" defaultValue={initialData?.best_day_to_attend} className="admin-input" placeholder="e.g. Day 1 (Opening)" />
-              </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="admin-form-group">
-                <label className="admin-label">How to Reach</label>
-                <textarea name="travel_logistics" defaultValue={initialData?.travel_logistics} rows={2} className="admin-input" />
-              </div>
-              <div className="admin-form-group">
-                <label className="admin-label">Accommodation</label>
-                <textarea name="accommodation" defaultValue={initialData?.accommodation} rows={2} className="admin-input" />
-              </div>
-              <div className="admin-form-group col-span-full">
-                <label className="admin-label">Safety Guidelines</label>
-                <textarea name="safety_guidelines" defaultValue={initialData?.safety_guidelines} rows={2} className="admin-input" />
-              </div>
-            </div>
-          </div>
-        </div>
 
-        {/* Media Engine */}
-        <div className="admin-card-modern">
-          <div className="admin-card-header">
-            <h3 style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--admin-text-main)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Media System</h3>
+          <div className="admin-form-row admin-form-row--2">
+            <TextField
+              label="How to Reach"
+              name="travel_logistics"
+              multiline
+              rows={2}
+              defaultValue={initialData?.travel_logistics as string}
+            />
+            <TextField
+              label="Accommodation"
+              name="accommodation"
+              multiline
+              rows={2}
+              defaultValue={initialData?.accommodation as string}
+            />
           </div>
-          <div className="admin-card-body">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-              <div className="admin-form-group">
-                <label className="admin-label">Heritage Cover Photo <span style={{ color: '#dc2626' }}>*</span></label>
-                <div onClick={() => heroInputRef.current?.click()} className="admin-input flex flex-col items-center justify-center gap-3 cursor-pointer border-dashed border-2 py-8 bg-gray-50/50 hover:bg-gray-50 transition-colors" style={{ height: 'auto' }}>
-                  {(heroFile || initialData?.hero_image) ? (
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-lg overflow-hidden border border-admin-border-standard">
-                        <img src={heroFile ? URL.createObjectURL(heroFile) : initialData.hero_image} className="w-full h-full object-cover" />
-                      </div>
-                      <span className="text-sm font-medium text-admin-text-main truncate max-w-[200px]">{heroFile ? heroFile.name : 'Change Heritage Photo'}</span>
-                    </div>
-                  ) : (
-                    <>
-                      <UploadCloud className="text-admin-primary" size={24} />
-                      <span className="text-sm font-medium text-admin-text-subtle">Upload Heritage Photo</span>
-                    </>
-                  )}
-                </div>
-                <input type="file" ref={heroInputRef} style={{ display: 'none' }} onChange={(e) => e.target.files && setHeroFile(e.target.files[0])} />
-              </div>
-              <div className="admin-form-group">
-                <label className="admin-label">Event Highlights (Gallery)</label>
-                <div onClick={() => extraInputRef.current?.click()} className="admin-input flex flex-col items-center justify-center gap-3 cursor-pointer border-dashed border-2 py-8 bg-gray-50/50 hover:bg-gray-50 transition-colors" style={{ height: 'auto' }}>
-                  {extraFiles.length > 0 ? (
-                    <div className="flex items-center gap-2">
-                       <div className="p-2 bg-emerald-50 text-emerald-600 rounded-md">
-                         <ImageIcon size={18} />
-                       </div>
-                       <span className="text-sm font-medium text-admin-text-main">{extraFiles.length} photos added</span>
-                    </div>
-                  ) : (
-                    <>
-                      <Plus className="text-admin-text-subtle" size={24} />
-                      <span className="text-sm font-medium text-admin-text-subtle">Add Gallery Assets</span>
-                    </>
-                  )}
-                </div>
-                <input type="file" ref={extraInputRef} multiple style={{ display: 'none' }} onChange={(e) => e.target.files && setExtraFiles([...extraFiles, ...Array.from(e.target.files)])} />
-              </div>
-            </div>
-            <div className="admin-form-group">
-              <label className="admin-label">Video Clips (Comma separated YouTube URLs)</label>
-              <input type="text" name="videos" defaultValue={initialData?.videos?.join(', ')} className="admin-input" placeholder="Highlight reels URL" />
-            </div>
-          </div>
-        </div>
 
-        {/* Geo Engine */}
-        <div className="admin-card-modern">
-          <div className="admin-card-header">
-            <h3 style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--admin-text-main)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Map & Venue Intelligence</h3>
-          </div>
-          <div className="admin-card-body">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-              <div className="admin-form-group">
-                <label className="admin-label">Venue Name</label>
-                <input type="text" name="venue_name" defaultValue={initialData?.venue_name} className="admin-input" placeholder="e.g. Kisama Heritage Village" />
-              </div>
-              <div className="admin-form-group">
-                <label className="admin-label">Full Venue Address</label>
-                <input type="text" name="address" defaultValue={initialData?.address} className="admin-input" />
-              </div>
-            </div>
-            <div className="flex gap-2 mb-6">
-              <div className="relative flex-1">
-                <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--admin-text-placeholder)' }} />
-                <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleSearchLocation())} className="admin-input pl-10" placeholder="Locate on Map..." />
-              </div>
-              <button type="button" onClick={handleSearchLocation} className="admin-btn admin-btn-secondary" style={{ flexShrink: 0 }}>{searching ? '...' : 'Search'}</button>
-            </div>
-            <div className="w-full h-[400px] rounded-xl overflow-hidden border border-admin-border-standard shadow-sm">
-              {typeof window !== 'undefined' ? (
-                <MapContainerAny center={coords ? [coords.lat, coords.lng] : [26.14, 91.73]} zoom={coords ? 13 : 6} style={{ height: '100%', width: '100%' }}>
-                  <TileLayerAny url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                  {coords && <MarkerAny position={[coords.lat, coords.lng]} />}
-                  {coords && <MapRecenter coords={[coords.lat, coords.lng]} />}
-                </MapContainerAny>
-              ) : (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--admin-text-subtle)', fontStyle: 'italic' }}>Initializing map engine...</div>
-              )}
-            </div>
-          </div>
+          <TextField
+            label="Safety Guidelines"
+            name="safety_guidelines"
+            multiline
+            rows={2}
+            defaultValue={initialData?.safety_guidelines as string}
+          />
         </div>
+      </div>
 
-        {/* Discovery & Tags */}
-        <div className="admin-card-modern">
-          <div className="admin-card-header">
-            <h3 style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--admin-text-main)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Search & Discovery</h3>
+      {/* ── Media ── */}
+      <div className="admin-form-section">
+        <div className="admin-form-section-header">Media</div>
+        <div className="admin-form-section-body">
+          <div className="admin-form-row admin-form-row--2">
+            <ImageAttacher
+              label="Heritage Cover Photo"
+              required={!isEdit}
+              existingUrl={initialData?.hero_image as string}
+              files={heroFiles}
+              onChange={setHeroFiles}
+            />
+            <ImageAttacher
+              label="Event Gallery"
+              multiple
+              hint="Optional highlights"
+              files={galleryFiles}
+              onChange={setGalleryFiles}
+            />
           </div>
-          <div className="admin-card-body">
-            <div className="admin-form-group">
-              <div className="flex gap-2">
-                <input 
-                  type="text" 
-                  value={tagInput} 
-                  onChange={(e) => setTagInput(e.target.value)} 
-                  onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddTag())} 
-                  className="admin-input" 
-                  placeholder="e.g. Trending, Tribal" 
-                />
-                <button type="button" onClick={handleAddTag} className="admin-btn admin-btn-secondary" style={{ flexShrink: 0 }}>Add</button>
-              </div>
-              <div className="flex flex-wrap gap-2 mt-4">
-                {tags.map(t => (
-                  <span key={t} className="admin-badge admin-badge-emerald flex gap-2 items-center normal-case py-1.5 px-3">
-                    {t} <X size={12} className="cursor-pointer" onClick={() => removeTag(t)} />
-                  </span>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
 
-        {/* Action Buttons */}
-        <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem', paddingTop: '1.5rem', borderTop: '1px solid var(--admin-border-standard)' }}>
-          <button type="button" onClick={onCancel} className="admin-btn admin-btn-secondary" style={{ flex: 1 }}>Discard Changes</button>
-          <button type="submit" disabled={loading} className="admin-btn admin-btn-primary" style={{ flex: 1 }}>
-            {loading ? 'Processing...' : initialData ? 'Update Festival' : 'Publish Festival'}
-          </button>
+          <TextField
+            label="Video Links"
+            hint="Comma-separated YouTube URLs"
+            name="videos"
+            defaultValue={(initialData?.videos as string[])?.join(', ')}
+            placeholder="https://youtube.com/…"
+          />
         </div>
-      </form>
-    </div>
+      </div>
+
+      {/* ── Location ── */}
+      <div className="admin-form-section">
+        <div className="admin-form-section-header">Map &amp; Venue</div>
+        <div className="admin-form-section-body">
+          <div className="admin-form-row admin-form-row--2">
+            <TextField
+              label="Venue Name"
+              name="venue_name"
+              defaultValue={initialData?.venue_name as string}
+              placeholder="e.g. Kisama Heritage Village"
+            />
+            <TextField
+              label="Venue Address"
+              name="address"
+              defaultValue={initialData?.address as string}
+            />
+          </div>
+
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <div style={{ position: 'relative', flex: 1 }}>
+              <Search size={16} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#9ca3af' }} />
+              <input
+                className="admin-input"
+                style={{ paddingLeft: '2rem' }}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSearchLocation() } }}
+                placeholder="Search location…"
+              />
+            </div>
+            <Button type="button" onClick={handleSearchLocation} loading={searching}>
+              Search
+            </Button>
+          </div>
+
+          {searchResults.length > 0 && (
+            <div style={{
+              background: '#fff',
+              border: '1px solid var(--admin-border-standard)',
+              borderRadius: 'var(--admin-radius)',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+              overflow: 'hidden',
+            }}>
+              {searchResults.map((r, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => selectLocation(r)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%',
+                    padding: '0.625rem 0.75rem', background: 'none', border: 'none',
+                    borderBottom: '1px solid #f3f4f6', cursor: 'pointer',
+                    fontSize: '0.8125rem', color: '#374151', textAlign: 'left',
+                  }}
+                >
+                  <Search size={14} style={{ color: '#9ca3af', flexShrink: 0 }} />
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.display_name}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div style={{ width: '100%', height: 300, borderRadius: 'var(--admin-radius)', overflow: 'hidden', border: '1px solid var(--admin-border-standard)' }}>
+            {typeof window !== 'undefined' ? (
+              <MapContainerAny center={coords ? [coords.lat, coords.lng] : [26.14, 91.73]} zoom={coords ? 13 : 6} style={{ height: '100%', width: '100%' }}>
+                <TileLayerAny url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                {coords && <MarkerAny position={[coords.lat, coords.lng]} />}
+                {coords && <MapRecenter coords={[coords.lat, coords.lng]} />}
+              </MapContainerAny>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', background: '#f9fafb', color: '#9ca3af', fontStyle: 'italic', fontSize: '0.8125rem' }}>
+                Loading map…
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Discovery Tags ── */}
+      <div className="admin-form-section">
+        <div className="admin-form-section-header">Search &amp; Discovery</div>
+        <div className="admin-form-section-body">
+          <TagInput
+            label="Tags"
+            hint="e.g. Trending, Tribal"
+            value={tags}
+            onChange={setTags}
+          />
+        </div>
+      </div>
+
+      {/* ── Actions ── */}
+      <div className="admin-form-actions">
+        <Button type="button" variant="secondary" onClick={onCancel}>
+          Discard
+        </Button>
+        <Button type="submit" variant="primary" loading={loading}>
+          {isEdit ? 'Update Festival' : 'Publish Festival'}
+        </Button>
+      </div>
+    </form>
   )
 }

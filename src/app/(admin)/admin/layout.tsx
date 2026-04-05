@@ -1,35 +1,29 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { 
-  CheckSquare, 
-  Calendar, 
-  Users, 
-  DollarSign, 
-  FileText, 
-  Shield, 
-  Menu, 
-  X, 
-  Settings, 
-  LogOut, 
-  ChevronDown, 
-  ChevronUp, 
+import {
+  CheckSquare,
+  Calendar,
+  Users,
+  DollarSign,
+  FileText,
+  Shield,
+  Menu,
+  X,
+  Settings,
+  LogOut,
+  ChevronDown,
+  ChevronUp,
   LayoutDashboard,
   Search,
   HelpCircle,
   Bell,
   Command,
-  Database,
-  Lock,
-  HardDrive,
-  Cpu,
-  Activity,
-  Globe,
-  Share2
 } from 'lucide-react'
 import { signOut } from '@/features/auth/actions'
+import { useAuth } from '@/hooks/useAuth'
 import { Breadcrumbs } from '@/components/admin/Breadcrumbs'
 
 const sidebarSections = [
@@ -69,6 +63,7 @@ const sidebarSections = [
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
+  const { user } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [expandedItems, setExpandedItems] = useState<string[]>(['/admin/content'])
   const [profileOpen, setProfileOpen] = useState(false)
@@ -81,64 +76,61 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }
 
   const handleLogout = async () => {
-    await signOut()
-    router.push('/login')
+    document.cookie = 'ne_auth_token=; path=/; max-age=0'
+    document.cookie = 'mock-auth=; path=/; max-age=0'
+    try { await signOut() } catch { /* cookie already cleared client-side */ }
+    window.location.href = '/admin/login'
   }
 
   return (
-    <div className="admin-layout-wrapper flex">
+    <div className="admin-layout-wrapper" style={{ display: 'flex' }}>
       {/* Sidebar */}
-      <aside className={`admin-sidebar ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+      <aside className={`admin-sidebar${sidebarOpen ? '' : ' admin-sidebar--closed'}`}>
         <div className="admin-sidebar-logo">
-           <div style={{ 
-             width: 24, height: 24, padding: 2, 
-             background: '#3ecf8e', borderRadius: 4, 
-             color: 'white', overflow: 'hidden',
-             display: 'flex', alignItems: 'center', justifyContent: 'center',
-             flexShrink: 0,
-           }}>
-             <Shield size={14} strokeWidth={3} />
-           </div>
-           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-             <span style={{ fontWeight: 600, color: 'var(--admin-text-main)', fontSize: '0.875rem' }}>NorthEastTravel</span>
-             <span className="admin-badge admin-badge-free">FREE</span>
-           </div>
+          <div style={{
+            width: 24, height: 24, padding: 2,
+            background: '#3ecf8e', borderRadius: 4,
+            color: 'white', overflow: 'hidden',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            flexShrink: 0,
+          }}>
+            <Shield size={14} strokeWidth={3} />
+          </div>
+          <span style={{ fontWeight: 600, color: 'var(--admin-text-main)', fontSize: '0.875rem' }}>NorthEastTravel</span>
         </div>
-        
-        <nav style={{ flex: 1, padding: '0.5rem 0', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
+
+        <nav className="admin-sidebar-nav">
           {sidebarSections.map((section, sIndex) => (
             <div key={sIndex}>
               {section.title && <div className="admin-nav-section-title">{section.title}</div>}
               {section.items.map(item => {
                 const isActive = pathname === item.href || (item.subItems && pathname.startsWith(item.href))
                 const isExpanded = expandedItems.includes(item.href)
-                
+
                 return (
                   <div key={item.href}>
-                    <Link 
-                      href={item.href} 
+                    <Link
+                      href={item.href}
                       onClick={(e) => {
                         if (item.subItems) {
                           toggleExpand(item.href, e)
                         } else {
                           setSidebarOpen(false)
                         }
-                      }} 
-                      className={`admin-nav-item ${isActive ? 'active' : ''}`}
+                      }}
+                      className={`admin-nav-item${isActive ? ' active' : ''}`}
                     >
-                      <div className="flex items-center gap-3">
-                        <span style={{ color: isActive ? 'var(--admin-text-main)' : 'inherit' }}>{item.icon}</span>
-                        <span>{item.label}</span>
-                      </div>
+                      <span className="admin-nav-item-icon">{item.icon}</span>
+                      <span>{item.label}</span>
                       {item.subItems && (
-                        <span className="ml-auto text-gray-400">
+                        <span className="admin-nav-item-chevron">
                           {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
                         </span>
                       )}
                     </Link>
-                    
+
                     {item.subItems && isExpanded && (
-                      <div className="flex flex-col gap-0.5 mb-1">
+                      <div className="admin-nav-sub-list">
                         {item.subItems.map(subItem => {
                           const isSubActive = pathname === subItem.href || pathname.startsWith(`${subItem.href}/`)
                           return (
@@ -146,7 +138,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                               key={subItem.href}
                               href={subItem.href}
                               onClick={() => setSidebarOpen(false)}
-                              className={`admin-nav-sub-item ${isSubActive ? 'active' : ''}`}
+                              className={`admin-nav-sub-item${isSubActive ? ' active' : ''}`}
                             >
                               {subItem.label}
                             </Link>
@@ -161,150 +153,94 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           ))}
         </nav>
 
-        {/* Sidebar Footer */}
-        <div style={{ padding: '0.75rem', borderTop: '1px solid var(--admin-border-standard)' }}>
+        <div className="admin-sidebar-footer">
           <Link href="/admin/settings" className="admin-nav-item" style={{ margin: 0 }}>
-            <Settings size={16} /> <span>Project Settings</span>
+            <span className="admin-nav-item-icon"><Settings size={16} /></span>
+            <span>Project Settings</span>
           </Link>
         </div>
       </aside>
 
       {/* Main Content Wrapper */}
       <div className="admin-content-wrapper">
-        {/* Top Navigation */}
         <header className="admin-top-nav">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <button 
-              onClick={() => setSidebarOpen(!sidebarOpen)} 
-              className="hide-mobile"
-              style={{ display: 'none', color: 'var(--admin-text-subtle)', background: 'none', border: 'none' }}
+          <div className="admin-top-nav-left">
+            <button
+              className="admin-mobile-toggle"
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              aria-label="Toggle sidebar"
             >
-              <Menu size={20} />
+              {sidebarOpen ? <X size={18} /> : <Menu size={18} />}
             </button>
             <Breadcrumbs />
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            {/* Connect button */}
-            <button className="admin-btn admin-btn-secondary" style={{ fontSize: '0.75rem', fontWeight: 600 }}>
-              <Share2 size={14} /> Connect
-            </button>
-            
-            {/* Search bar */}
-            <div 
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                padding: '0 0.75rem',
-                height: 32,
-                background: 'var(--admin-bg-canvas)',
-                border: '1px solid var(--admin-border-standard)',
-                borderRadius: 'var(--admin-radius)',
-                color: 'var(--admin-text-subtle)',
-                fontSize: '0.75rem',
-                cursor: 'text',
-                width: 200,
-                transition: 'all 0.15s ease',
-              }}
-              className="hover:border-admin-primary/50"
-            >
-              <Search size={14} style={{ color: 'var(--admin-text-placeholder)' }} />
-              <span style={{ color: 'var(--admin-text-placeholder)' }}>Search...</span>
-              <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '2px', opacity: 0.4 }}>
-                <Command size={10} />
-                <span>K</span>
-              </div>
+          <div className="admin-top-nav-right">
+            <div className="admin-topnav-search">
+              <Search size={14} />
+              <span>Search...</span>
+              <span className="admin-topnav-search-shortcut">
+                <Command size={10} />K
+              </span>
             </div>
 
-            {/* Right icon group */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', borderLeft: '1px solid var(--admin-border-standard)', paddingLeft: '0.75rem' }}>
-              <button style={{ padding: '6px', background: 'none', border: 'none', color: 'var(--admin-text-subtle)', cursor: 'pointer' }}>
-                <HelpCircle size={18} />
+            <div className="admin-topnav-divider" />
+
+            <button className="admin-topnav-icon-btn" aria-label="Help">
+              <HelpCircle size={17} />
+            </button>
+            <button className="admin-topnav-icon-btn" aria-label="Notifications">
+              <Bell size={17} />
+            </button>
+
+            <div className="admin-topnav-divider" />
+
+            <div style={{ position: 'relative' }}>
+              <button
+                className="admin-topnav-avatar"
+                onClick={() => setProfileOpen(!profileOpen)}
+                aria-label="Profile menu"
+              >
+                <img
+                  src={`https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'Admin')}&background=f3f4f6&color=6b7280&size=32`}
+                  alt="Profile"
+                />
               </button>
-              <button style={{ padding: '6px', background: 'none', border: 'none', color: 'var(--admin-text-subtle)', cursor: 'pointer' }}>
-                <Bell size={18} />
-              </button>
-              
-              {/* Profile avatar */}
-              <div style={{ position: 'relative', marginLeft: '0.5rem' }}>
-                <button 
-                  onClick={() => setProfileOpen(!profileOpen)}
-                  style={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: '50%',
-                    background: 'var(--admin-bg-canvas)',
-                    border: '1px solid var(--admin-border-standard)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    overflow: 'hidden',
-                    cursor: 'pointer',
-                    padding: 0,
-                  }}
-                >
-                  <img 
-                    src="https://ui-avatars.com/api/?name=Admin&background=f3f4f6&color=6b7280&size=32" 
-                    alt="Profile" 
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-                  />
-                </button>
-                
-                {profileOpen && (
-                  <>
-                    <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setProfileOpen(false)} />
-                    <div className="animate-fade-in" style={{ 
-                      position: 'absolute', 
-                      top: '100%', 
-                      right: 0, 
-                      marginTop: '0.5rem', 
-                      width: 200, 
-                      background: '#fff', 
-                      border: '1px solid var(--admin-border-standard)', 
-                      borderRadius: '0.375rem', 
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.08)', 
-                      zIndex: 50, 
-                      overflow: 'hidden',
-                      padding: '0.25rem 0', 
-                    }}>
-                      <div style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid var(--admin-border-standard)', background: '#fafafa' }}>
-                        <div style={{ fontSize: '10px', fontWeight: 600, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Signed in as</div>
-                        <div style={{ fontSize: '0.75rem', fontWeight: 500, color: 'var(--admin-text-main)' }}>admin@netravel.com</div>
-                      </div>
-                      <Link 
-                        href="/admin/settings" 
-                        style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', fontSize: '0.75rem', color: 'var(--admin-text-subtle)', textDecoration: 'none' }}
-                      >
-                        <Settings size={14} /> Account Settings
-                      </Link>
-                      <button 
-                        onClick={handleLogout} 
-                        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', fontSize: '0.75rem', color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer' }}
-                      >
-                        <LogOut size={14} /> Sign Out
-                      </button>
+
+              {profileOpen && (
+                <>
+                  <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setProfileOpen(false)} />
+                  <div className="admin-profile-dropdown">
+                    <div className="admin-profile-dropdown-header">
+                      <div className="admin-profile-dropdown-label">Signed in as</div>
+                      <div className="admin-profile-dropdown-email">{user?.email ?? 'Admin'}</div>
                     </div>
-                  </>
-                )}
-              </div>
+                    <Link href="/admin/settings" className="admin-profile-dropdown-item">
+                      <Settings size={14} /> Account Settings
+                    </Link>
+                    <button
+                      onClick={handleLogout}
+                      className="admin-profile-dropdown-item admin-profile-dropdown-item--danger"
+                    >
+                      <LogOut size={14} /> Sign Out
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </header>
 
-        {/* Content Area */}
         <main className="admin-main-content">
           {children}
         </main>
       </div>
 
       {/* Mobile Sidebar Overlay */}
-      {sidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-black/20 backdrop-blur-sm z-30 md:hidden" 
-          onClick={() => setSidebarOpen(false)} 
-        />
-      )}
+      <div
+        className={`admin-sidebar-overlay${sidebarOpen ? ' admin-sidebar-overlay--visible' : ''}`}
+        onClick={() => setSidebarOpen(false)}
+      />
     </div>
   )
 }
